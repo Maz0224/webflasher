@@ -16,7 +16,6 @@
             align-items: center;
             height: 100vh;
             color: white;
-            flex-direction: column;
         }
 
         .container {
@@ -85,40 +84,6 @@
         .error {
             color: #f44336;
         }
-
-        /* Centered Command Line Interface */
-        .cli-container {
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            width: 100%;
-            margin-top: 20px;
-        }
-
-        .cli {
-            background-color: black;
-            color: white; /* White text */
-            font-size: 1.2em;
-            padding: 15px;
-            border-radius: 5px;
-            width: 100%;
-            max-width: 500px;
-            min-height: 150px;
-            overflow-y: auto;
-            white-space: pre-wrap;
-            display: flex;
-            flex-direction: column;
-        }
-
-        .cli input {
-            background-color: black;
-            color: white; /* White text */
-            border: none;
-            outline: none;
-            width: 100%;
-            font-family: 'Source Code Pro', monospace;
-            font-size: 1em;
-        }
     </style>
 </head>
 <body>
@@ -131,50 +96,21 @@
         <div id="status"></div>
     </div>
 
-    <!-- Centered CLI -->
-    <div class="cli-container">
-        <div class="cli" id="cliOutput">
-            <div>Welcome to ESP32 Flasher CLI. Type commands below:</div>
-            <input type="text" id="cliInput" placeholder="Enter command...">
-        </div>
-    </div>
-
     <script>
         let port;
         let writer;
-        
-        function processCommand(command) {
-            const output = document.getElementById("cliOutput");
-            const inputBox = document.getElementById("cliInput");
-            
-            if (command === "connect") {
-                connectToESP32();
-                output.innerHTML += `\n> ${command} - Attempting to connect to ESP32...`;
-            } else if (command === "help") {
-                output.innerHTML += `\n> ${command} - Available commands:\n  - connect: Connect to the ESP32\n  - flash [file]: Flash firmware\n  - help: Show this help message`;
-            } else if (command.startsWith("flash ")) {
-                const file = document.getElementById("fileInput").files[0];
-                if (file) {
-                    output.innerHTML += `\n> ${command} - Flashing ${file.name} to ESP32...`;
-                    flashFirmware(file);
-                } else {
-                    output.innerHTML += `\n> ${command} - No file selected for flashing.`;
-                }
-            } else {
-                output.innerHTML += `\n> ${command} - Command not recognized. Type "help" for available commands.`;
-            }
-
-            inputBox.value = '';
-            output.scrollTop = output.scrollHeight;
-        }
 
         async function connectToESP32() {
             try {
+                // Request a port and open a connection
                 port = await navigator.serial.requestPort();
                 await port.open({ baudRate: 115200 });
 
+                // Set status message
                 document.getElementById("status").innerText = "Connected to ESP32. Ready to upload!";
                 document.getElementById("status").className = "success";
+
+                // Enable file input
                 document.getElementById("fileInput").disabled = false;
             } catch (error) {
                 console.error("Error connecting to ESP32:", error);
@@ -183,12 +119,15 @@
             }
         }
 
+        // Flash firmware to the ESP32
         async function flashFirmware(file) {
             const fileReader = new FileReader();
             fileReader.onload = async function() {
                 try {
                     const data = new Uint8Array(fileReader.result);
                     const writer = port.writable.getWriter();
+
+                    // Write the firmware to the ESP32 (assumes 0x1000 offset for ESP32)
                     await writer.write(data);
                     writer.releaseLock();
 
@@ -204,18 +143,16 @@
             fileReader.readAsArrayBuffer(file);
         }
 
-        document.getElementById("cliInput").addEventListener("keydown", function(event) {
-            if (event.key === "Enter") {
-                const command = event.target.value.trim();
-                if (command) {
-                    processCommand(command);
-                }
+        // Listen for file selection
+        document.getElementById("fileInput").addEventListener("change", function(event) {
+            if (event.target.files.length > 0) {
+                const file = event.target.files[0];
+                flashFirmware(file);
             }
         });
 
-        document.getElementById("connectBtn").addEventListener("click", function() {
-            processCommand("connect");
-        });
+        // Connect button event
+        document.getElementById("connectBtn").addEventListener("click", connectToESP32);
     </script>
 </body>
 </html>
