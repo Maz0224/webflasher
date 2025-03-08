@@ -1,0 +1,221 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>ESP32 Web Flasher</title>
+    <link href="https://fonts.googleapis.com/css2?family=Source+Code+Pro:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Source Code Pro', monospace;
+            background-color: #A6D5FF; /* Light blue background */
+            margin: 0;
+            padding: 0;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            color: white;
+            flex-direction: column;
+        }
+
+        .container {
+            text-align: center;
+            background-color: #ffffff;
+            border-radius: 10px;
+            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.1);
+            padding: 30px;
+            width: 100%;
+            max-width: 500px;
+            color: #333;
+        }
+
+        h1 {
+            color: #007BFF;
+            font-size: 2.5em;
+            margin-bottom: 20px;
+        }
+
+        p {
+            color: #666;
+            font-size: 1.2em;
+            margin-bottom: 20px;
+        }
+
+        input[type="file"] {
+            font-size: 1em;
+            padding: 10px;
+            margin: 20px 0;
+            border: 2px solid #ddd;
+            border-radius: 5px;
+            width: 80%;
+            background-color: #fafafa;
+        }
+
+        input[type="file"]:hover {
+            border-color: #888;
+        }
+
+        button {
+            background-color: #4CAF50;
+            color: white;
+            border: none;
+            padding: 15px 32px;
+            font-size: 1.1em;
+            border-radius: 5px;
+            cursor: pointer;
+            margin-top: 20px;
+            width: 80%;
+        }
+
+        button:hover {
+            background-color: #45a049;
+        }
+
+        #status {
+            margin-top: 20px;
+            font-size: 1.1em;
+            font-weight: bold;
+        }
+
+        .success {
+            color: #4CAF50;
+        }
+
+        .error {
+            color: #f44336;
+        }
+
+        /* Centered Command Line Interface */
+        .cli-container {
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            width: 100%;
+            margin-top: 20px;
+        }
+
+        .cli {
+            background-color: black;
+            color: white; /* White text */
+            font-size: 1.2em;
+            padding: 15px;
+            border-radius: 5px;
+            width: 100%;
+            max-width: 500px;
+            min-height: 150px;
+            overflow-y: auto;
+            white-space: pre-wrap;
+            display: flex;
+            flex-direction: column;
+        }
+
+        .cli input {
+            background-color: black;
+            color: white; /* White text */
+            border: none;
+            outline: none;
+            width: 100%;
+            font-family: 'Source Code Pro', monospace;
+            font-size: 1em;
+        }
+    </style>
+</head>
+<body>
+    <div class="container">
+        <h1>ESP32 Web Flasher</h1>
+        <p>Select a firmware (.bin) file to upload to your ESP32.</p>
+        <input type="file" id="fileInput" accept=".bin">
+        <br>
+        <button id="connectBtn">Connect to ESP32</button>
+        <div id="status"></div>
+    </div>
+
+    <!-- Centered CLI -->
+    <div class="cli-container">
+        <div class="cli" id="cliOutput">
+            <div>Welcome to ESP32 Flasher CLI. Type commands below:</div>
+            <input type="text" id="cliInput" placeholder="Enter command...">
+        </div>
+    </div>
+
+    <script>
+        let port;
+        let writer;
+        
+        function processCommand(command) {
+            const output = document.getElementById("cliOutput");
+            const inputBox = document.getElementById("cliInput");
+            
+            if (command === "connect") {
+                connectToESP32();
+                output.innerHTML += `\n> ${command} - Attempting to connect to ESP32...`;
+            } else if (command === "help") {
+                output.innerHTML += `\n> ${command} - Available commands:\n  - connect: Connect to the ESP32\n  - flash [file]: Flash firmware\n  - help: Show this help message`;
+            } else if (command.startsWith("flash ")) {
+                const file = document.getElementById("fileInput").files[0];
+                if (file) {
+                    output.innerHTML += `\n> ${command} - Flashing ${file.name} to ESP32...`;
+                    flashFirmware(file);
+                } else {
+                    output.innerHTML += `\n> ${command} - No file selected for flashing.`;
+                }
+            } else {
+                output.innerHTML += `\n> ${command} - Command not recognized. Type "help" for available commands.`;
+            }
+
+            inputBox.value = '';
+            output.scrollTop = output.scrollHeight;
+        }
+
+        async function connectToESP32() {
+            try {
+                port = await navigator.serial.requestPort();
+                await port.open({ baudRate: 115200 });
+
+                document.getElementById("status").innerText = "Connected to ESP32. Ready to upload!";
+                document.getElementById("status").className = "success";
+                document.getElementById("fileInput").disabled = false;
+            } catch (error) {
+                console.error("Error connecting to ESP32:", error);
+                document.getElementById("status").innerText = "Failed to connect to ESP32.";
+                document.getElementById("status").className = "error";
+            }
+        }
+
+        async function flashFirmware(file) {
+            const fileReader = new FileReader();
+            fileReader.onload = async function() {
+                try {
+                    const data = new Uint8Array(fileReader.result);
+                    const writer = port.writable.getWriter();
+                    await writer.write(data);
+                    writer.releaseLock();
+
+                    document.getElementById("status").innerText = "Firmware uploaded successfully!";
+                    document.getElementById("status").className = "success";
+                } catch (error) {
+                    console.error("Error uploading firmware:", error);
+                    document.getElementById("status").innerText = "Error uploading firmware.";
+                    document.getElementById("status").className = "error";
+                }
+            };
+
+            fileReader.readAsArrayBuffer(file);
+        }
+
+        document.getElementById("cliInput").addEventListener("keydown", function(event) {
+            if (event.key === "Enter") {
+                const command = event.target.value.trim();
+                if (command) {
+                    processCommand(command);
+                }
+            }
+        });
+
+        document.getElementById("connectBtn").addEventListener("click", function() {
+            processCommand("connect");
+        });
+    </script>
+</body>
+</html>
