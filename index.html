@@ -84,6 +84,10 @@
         .error {
             color: #f44336;
         }
+
+        .danger {
+            background-color: #f44336;
+        }
     </style>
 </head>
 <body>
@@ -93,6 +97,7 @@
         <input type="file" id="fileInput" accept=".bin">
         <br>
         <button id="connectBtn">Connect to ESP32</button>
+        <button id="clearBtn" class="danger" disabled>Clear Flash</button>
         <div id="status"></div>
     </div>
 
@@ -110,11 +115,31 @@
                 document.getElementById("status").innerText = "Connected to ESP32. Ready to upload!";
                 document.getElementById("status").className = "success";
 
-                // Enable file input
+                // Enable file input and Clear Flash button
                 document.getElementById("fileInput").disabled = false;
+                document.getElementById("clearBtn").disabled = false;
             } catch (error) {
                 console.error("Error connecting to ESP32:", error);
                 document.getElementById("status").innerText = "Failed to connect to ESP32.";
+                document.getElementById("status").className = "error";
+            }
+        }
+
+        // Clear the flash memory of the ESP32
+        async function clearFlash() {
+            try {
+                const writer = port.writable.getWriter();
+                const eraseCommand = new TextEncoder().encode("AT+CLEAR_FLASH\r\n");
+
+                // Send the erase command to the ESP32 (this assumes the ESP32 supports it via serial AT commands)
+                await writer.write(eraseCommand);
+                writer.releaseLock();
+
+                document.getElementById("status").innerText = "Flash memory cleared successfully!";
+                document.getElementById("status").className = "success";
+            } catch (error) {
+                console.error("Error clearing flash:", error);
+                document.getElementById("status").innerText = "Error clearing flash.";
                 document.getElementById("status").className = "error";
             }
         }
@@ -153,6 +178,9 @@
 
         // Connect button event
         document.getElementById("connectBtn").addEventListener("click", connectToESP32);
+
+        // Clear button event
+        document.getElementById("clearBtn").addEventListener("click", clearFlash);
     </script>
 </body>
 </html>
